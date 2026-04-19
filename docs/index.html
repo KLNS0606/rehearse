@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>練團系統</title>
+<title>練團時間表</title>
 
 <style>
 body{font-family:Arial;margin:0;}
@@ -18,18 +18,9 @@ body{font-family:Arial;margin:0;}
 
 input{margin:3px;}
 
-.card{
-  border:1px solid #ccc;
-  padding:10px;
-  margin:5px 0;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-
 .row{
   display:grid;
-  grid-template-columns: 80px 1fr 1fr 60px;
+  grid-template-columns: 80px 1fr 2fr 60px;
   gap:10px;
   padding:8px;
   border-bottom:1px solid #ddd;
@@ -62,7 +53,7 @@ a{color:blue;}
 <body>
 
 <div class="topbar">
-  🎸 練團系統
+  🎸 練團時間表
 
   <div id="groupBar" class="hidden">
     👥 <span id="members"></span>
@@ -78,10 +69,10 @@ a{color:blue;}
   <h3>建立新團</h3>
 
   ID：
-  <input id="groupId" placeholder="例如 001">
+  <input id="groupId">
 
   團名：
-  <input id="groupName" placeholder="中文">
+  <input id="groupName">
 
   <br>
 
@@ -94,7 +85,6 @@ a{color:blue;}
   <button onclick="createGroup()">建立</button>
 
   <h3>目前團隊</h3>
-
   <div id="list"></div>
 
 </div>
@@ -102,7 +92,16 @@ a{color:blue;}
 <!-- 🔵 團內 -->
 <div id="page" class="hidden">
 
-  <h3 id="title"></h3>
+  <h2 id="title"></h2>
+
+  👥 <span id="membersText"></span>
+
+  <br><br>
+
+  區間：
+  <select id="weekSelect" onchange="renderTable()"></select>
+
+  <br><br>
 
   名字：
   <input id="name" maxlength="1">
@@ -123,6 +122,7 @@ let groupId=getGroup();
 let user="";
 let temp={};
 let meta={};
+let weeks=[];
 
 // ================= 判斷 =================
 if(groupId){
@@ -162,19 +162,6 @@ function createGroup(){
   location.href="?group="+id;
 }
 
-// ================= 刪團 =================
-function deleteGroup(id){
-
-  let list=JSON.parse(localStorage.getItem("groups")||"[]");
-  list=list.filter(x=>x.id!==id);
-  localStorage.setItem("groups",JSON.stringify(list));
-
-  fetch(base+id+".json",{method:"DELETE"});
-  fetch(base+id+".meta.json",{method:"DELETE"});
-
-  loadList();
-}
-
 // ================= 列表 =================
 function loadList(){
 
@@ -193,11 +180,24 @@ function loadList(){
       <div>${g.id}</div>
       <div>${g.name}</div>
       <div><a href="${url}">${url}</a></div>
-      <button onclick="deleteGroup('${g.id}')">刪</button>
+      <button onclick="deleteGroup('${g.id}')">刪除</button>
     `;
 
     box.appendChild(div);
   });
+}
+
+// ================= 刪團 =================
+function deleteGroup(id){
+
+  let list=JSON.parse(localStorage.getItem("groups")||"[]");
+  list=list.filter(x=>x.id!==id);
+  localStorage.setItem("groups",JSON.stringify(list));
+
+  fetch(base+id+".json",{method:"DELETE"});
+  fetch(base+id+".meta.json",{method:"DELETE"});
+
+  loadList();
 }
 
 // ================= 複製 =================
@@ -210,28 +210,80 @@ function setName(){
   user=document.getElementById("name").value;
 }
 
-// ================= 建表 =================
-let table=document.getElementById("table");
+// ================= 建週 =================
+function buildWeeks(start,end){
 
-let hours=[];
-for(let i=5;i<29;i++)hours.push(i%24);
+  weeks=[];
+  let cur=new Date(start);
 
-let h="<tr><th>時間</th>";
-for(let d=0;d<7;d++)h+="<th>Day"+(d+1)+"</th>";
-h+="</tr>";
-table.innerHTML+=h;
+  while(cur<=new Date(end)){
 
-for(let i=0;i<hours.length;i++){
-  let tr="<tr>";
-  tr+="<td>"+hours[i]+":00</td>";
+    let s=new Date(cur);
+    let e=new Date(cur);
+    e.setDate(e.getDate()+6);
 
-  for(let d=0;d<7;d++){
-    let id=d+"-"+i;
-    tr+=`<td onclick="toggle('${id}',this)"></td>`;
+    weeks.push({s,e});
+
+    cur.setDate(cur.getDate()+7);
   }
 
-  tr+="</tr>";
-  table.innerHTML+=tr;
+  let sel=document.getElementById("weekSelect");
+  sel.innerHTML="";
+
+  weeks.forEach((w,i)=>{
+
+    let opt=document.createElement("option");
+
+    opt.value=i;
+
+    opt.innerText=
+      `${w.s.getMonth()+1}/${w.s.getDate()}(${getWeek(w.s)}) ~ ${w.e.getMonth()+1}/${w.e.getDate()}(${getWeek(w.e)})`;
+
+    sel.appendChild(opt);
+  });
+
+  window.weeks=weeks;
+
+  renderTable();
+}
+
+// ================= 星期 =================
+function getWeek(d){
+  return ["日","一","二","三","四","五","六"][d.getDay()];
+}
+
+// ================= 表格 =================
+function renderTable(){
+
+  let table=document.getElementById("table");
+  table.innerHTML="";
+
+  let h="<tr><th>時間</th>";
+
+  for(let d=0;d<7;d++){
+    h+="<th>Day"+(d+1)+"</th>";
+  }
+
+  h+="</tr>";
+  table.innerHTML+=h;
+
+  let hours=[];
+  for(let i=5;i<29;i++)hours.push(i%24);
+
+  for(let i=0;i<hours.length;i++){
+    let tr="<tr>";
+    tr+="<td>"+hours[i]+":00</td>";
+
+    for(let d=0;d<7;d++){
+      let id=d+"-"+i;
+      tr+=`<td onclick="toggle('${id}',this)"></td>`;
+    }
+
+    tr+="</tr>";
+    table.innerHTML+=tr;
+  }
+
+  refresh();
 }
 
 // ================= 點 =================
@@ -263,6 +315,23 @@ function render(el,arr){
   else if(c>=4)el.classList.add("l4");
 }
 
+// ================= 成員 =================
+function refresh(){
+
+  let set=new Set();
+
+  for(let k in temp){
+
+    let el=document.querySelector(`td[onclick="toggle('${k}',this)"]`);
+    if(el)render(el,temp[k]);
+
+    temp[k].forEach(n=>set.add(n));
+  }
+
+  document.getElementById("members").innerText=[...set].join("/");
+  document.getElementById("membersText").innerText=[...set].join("/");
+}
+
 // ================= 送出 =================
 function submit(){
   fetch(base+groupId+".json",{
@@ -278,7 +347,10 @@ function load(){
   .then(r=>r.json())
   .then(m=>{
     meta=m;
-    document.getElementById("title").innerText=meta.name;
+
+    document.getElementById("title").innerText=m.name;
+
+    buildWeeks(m.start,m.end);
   });
 
   fetch(base+groupId+".json")
