@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <title>🎸 練團時間表</title>
     
-    <meta property="og:title" content="🎸 練團時間表">
-    <meta property="og:description" content="點擊連結填寫你的練團空檔，快速統計最佳練習時間！">
+    <meta property="og:description" content="練團時間統計表">
     <meta property="og:image" content="https://img.icons8.com/color/480/rock-music.png">
 
     <style>
@@ -45,7 +44,7 @@
     <div id="mainLogo">🎸 練團時間表</div>
     <div id="groupBar" class="hidden">
         👥 <span id="members">載入中...</span>
-        <button onclick="copyLink(location.href)">複製此頁連結</button>
+        <button onclick="copyRawLink(location.href)">複製連結</button>
     </div>
 </div>
 
@@ -56,7 +55,6 @@
         團名：<input id="groupName">
         日期：<input type="date" id="start">
         <button onclick="createGroup()">建立並進入</button>
-        <p style="font-size: 0.8em; color: red;">* 若 ID 已被使用，請先刪除下方列表中的舊團才能重新建立。</p>
 
         <h3>我的團隊列表</h3>
         <div id="list"></div>
@@ -99,21 +97,14 @@ async function createGroup() {
     const name = document.getElementById("groupName").value.trim();
     const start = document.getElementById("start").value;
     if (!id || !name || !start) { alert("請填寫完整！"); return; }
-
     try {
         const checkRes = await fetch(`${base}${id}/meta.json`);
         const existingMeta = await checkRes.json();
-        if (existingMeta) {
-            alert(`編號 [${id}] 已被佔用！`);
-            return;
-        }
+        if (existingMeta) { alert(`編號 [${id}] 已存在！`); return; }
         const meta = { name: name, start: new Date(start).toISOString() };
         await fetch(`${base}${id}/meta.json`, { method: "PUT", body: JSON.stringify(meta) });
         let list = JSON.parse(localStorage.getItem("groups") || "[]");
-        if (!list.find(g => g.id === id)) {
-            list.push({ id, name });
-            localStorage.setItem("groups", JSON.stringify(list));
-        }
+        if (!list.find(g => g.id === id)) { list.push({ id, name }); localStorage.setItem("groups", JSON.stringify(list)); }
         location.href = `?group=${id}`;
     } catch (e) { alert("建立失敗"); }
 }
@@ -127,7 +118,7 @@ function loadLocalList() {
         let div = document.createElement("div");
         div.className = "row";
         div.innerHTML = `
-            <button onclick="copyLink('${url}')">複製</button>
+            <button onclick="copyRawLink('${url}')">複製</button>
             <strong>${g.id}</strong>
             <span>${g.name}</span>
             <div class="url-text" onclick="location.href='${url}'">${url}</div>
@@ -154,21 +145,17 @@ async function loadGroupData() {
         metaData = await resMeta.json();
         if (!metaData) { document.getElementById("title").innerText = "找不到資料"; return; }
 
-        // 計算日期區間格式 (M/D-M/D)
         let dStart = new Date(metaData.start);
         let dEnd = new Date(metaData.start);
         dEnd.setDate(dStart.getDate() + 6);
         let dateRange = `${dStart.getMonth() + 1}/${dStart.getDate()}-${dEnd.getMonth() + 1}/${dEnd.getDate()}`;
         
-        // 1. 中間標題：依樣顯示團名
-        document.getElementById("title").innerText = metaData.name;
-
-        // 2. 最上面 Topbar：顯示 團名 日期區間-練團時間表
-        const fullDisplay = `🎸 ${metaData.name} ${dateRange}-練團時間表`;
-        document.getElementById("mainLogo").innerText = fullDisplay;
-
-        // 3. 網頁標籤標題同步更新
-        document.title = fullDisplay;
+        // 核心顯示邏輯：
+        const displayLabel = `${metaData.name} ${dateRange}-練團時間表`;
+        
+        document.getElementById("title").innerText = metaData.name; // 中間標題顯示團名
+        document.getElementById("mainLogo").innerText = `🎸 ${displayLabel}`; // Topbar 顯示全名
+        document.title = displayLabel; // 分頁標題同步更新 (有利於分享預覽)
 
         renderTableStructure();
         const resData = await fetch(`${base}${currentGroupId}/data.json`);
@@ -240,17 +227,14 @@ async function submitData() {
     let userName = document.getElementById("userName").value.trim();
     if (!userName) { alert("請輸入名字再送出"); return; }
     try {
-        await fetch(`${base}${currentGroupId}/data.json`, {
-            method: "PUT",
-            body: JSON.stringify(tempData)
-        });
+        await fetch(`${base}${currentGroupId}/data.json`, { method: "PUT", body: JSON.stringify(tempData) });
         alert("送出成功！");
         refreshUI(true);
     } catch (e) { alert("儲存失敗"); }
 }
 
-function copyLink(url) {
-    navigator.clipboard.writeText(url);
+function copyRawLink(url) {
+    navigator.clipboard.writeText(url); // 只複製純網址
     alert("已複製連結");
 }
 </script>
