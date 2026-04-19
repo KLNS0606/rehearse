@@ -5,18 +5,28 @@
 <title>練團系統</title>
 
 <style>
-body { font-family: Arial; }
+body{font-family:Arial;margin:0;}
 
 .topbar{
   display:flex;
   justify-content:space-between;
   padding:10px;
-  background:#f2f2f2;
+  background:#eee;
 }
 
-button,input{ margin:5px; }
+.container{padding:10px;}
 
-table {
+button,input{margin:5px;}
+
+.card{
+  padding:10px;
+  border:1px solid #ccc;
+  margin:5px 0;
+  display:flex;
+  justify-content:space-between;
+}
+
+table{
   width:100%;
   border-collapse:collapse;
   table-layout:fixed;
@@ -33,82 +43,145 @@ td,th{
 .l2{background:#4fc3f7;}
 .l3{background:#0288d1;color:white;}
 .l4{background:#01579b;color:white;}
+
+.hidden{display:none;}
 </style>
 </head>
 
 <body>
 
 <div class="topbar">
-  <div>🎸 團：<span id="groupName"></span></div>
-  <div>
-    <button onclick="createGroup()">➕ 創建新團</button>
+  <div id="title">🎸 練團系統</div>
+
+  <div id="groupTools" class="hidden">
+    👥 <span id="members"></span>
     <button onclick="copyLink()">📋 複製連結</button>
   </div>
 </div>
 
-名字（1字）：
-<input id="nameInput" maxlength="1">
-<button onclick="setName()">設定</button>
-<button onclick="submitData()">送出</button>
+<div class="container">
 
-<p id="info"></p>
+<!-- 首頁 -->
+<div id="home">
 
-<table id="table"></table>
+  <h3>建立新團</h3>
+
+  <input id="newGroupName" placeholder="輸入團名（英文）">
+  <button onclick="createGroup()">建立</button>
+
+  <h3>已建立的團</h3>
+  <div id="groupList"></div>
+
+</div>
+
+<!-- 團內 -->
+<div id="groupPage" class="hidden">
+
+  <h3 id="groupTitle"></h3>
+
+  名字（1字）：
+  <input id="nameInput" maxlength="1">
+  <button onclick="setName()">設定</button>
+  <button onclick="submitData()">送出</button>
+
+  <table id="table"></table>
+
+</div>
+
+</div>
 
 <script>
 
 const base = "https://rehearse0606-default-rtdb.firebaseio.com/";
 
-let userName = "";
 let group = getGroup();
+let userName = "";
 let temp = {};
 
-document.getElementById("groupName").innerText = group;
-
-// 取得 group
-function getGroup(){
-  let url = new URL(window.location.href);
-  return url.searchParams.get("group") || "default";
+// ===== 判斷模式 =====
+if(group){
+  document.getElementById("home").classList.add("hidden");
+  document.getElementById("groupPage").classList.remove("hidden");
+  document.getElementById("groupTools").classList.remove("hidden");
+  document.getElementById("groupTitle").innerText = "團：" + group;
+  load();
+} else {
+  loadGroupList();
 }
 
-// 創團
+// ===== 取得 group =====
+function getGroup(){
+  return new URL(location.href).searchParams.get("group");
+}
+
+// ===== 創團 =====
 function createGroup(){
-  let name = prompt("輸入團名（英文/數字）");
+  let name = document.getElementById("newGroupName").value;
   if(!name) return;
 
-  let link = window.location.origin + window.location.pathname + "?group=" + name;
+  let list = JSON.parse(localStorage.getItem("groups")||"[]");
+  if(!list.includes(name)) list.push(name);
+  localStorage.setItem("groups", JSON.stringify(list));
 
-  navigator.clipboard.writeText(link);
-  alert("已複製連結：\n" + link);
-
-  window.location.href = link;
+  location.href = "?group=" + name;
 }
 
-// 複製連結
+// ===== 團列表 =====
+function loadGroupList(){
+  let list = JSON.parse(localStorage.getItem("groups")||"[]");
+  let box = document.getElementById("groupList");
+
+  box.innerHTML = "";
+
+  list.forEach(g=>{
+    let div = document.createElement("div");
+    div.className="card";
+
+    div.innerHTML = `
+      <span onclick="openGroup('${g}')">${g}</span>
+      <button onclick="deleteGroup('${g}')">刪除</button>
+    `;
+
+    box.appendChild(div);
+  });
+}
+
+function openGroup(g){
+  location.href = "?group=" + g;
+}
+
+function deleteGroup(g){
+  let list = JSON.parse(localStorage.getItem("groups")||"[]");
+  list = list.filter(x=>x!==g);
+  localStorage.setItem("groups", JSON.stringify(list));
+
+  fetch(base + g + ".json",{method:"DELETE"});
+
+  loadGroupList();
+}
+
+// ===== 複製連結 =====
 function copyLink(){
-  navigator.clipboard.writeText(window.location.href);
-  alert("已複製連結");
+  navigator.clipboard.writeText(location.href);
+  alert("已複製");
 }
 
-// 設名字
+// ===== 名字 =====
 function setName(){
   userName = document.getElementById("nameInput").value;
-  document.getElementById("info").innerText = "名字：" + userName;
 }
 
-// 建表
+// ===== 建表 =====
 let table = document.getElementById("table");
 
 let hours=[];
 for(let i=5;i<29;i++)hours.push(i%24);
 
-// header
 let h="<tr><th>時間</th>";
 for(let d=0;d<7;d++)h+="<th>Day"+(d+1)+"</th>";
 h+="</tr>";
 table.innerHTML+=h;
 
-// body
 for(let i=0;i<hours.length;i++){
   let tr="<tr>";
   tr+="<td>"+hours[i]+":00</td>";
@@ -122,69 +195,63 @@ for(let i=0;i<hours.length;i++){
   table.innerHTML+=tr;
 }
 
-// 點格
+// ===== 點格 =====
 function toggle(id,el){
   if(!userName) return alert("先輸入名字");
 
   if(!temp[id]) temp[id]=[];
 
-  let idx=temp[id].indexOf(userName);
+  let i=temp[id].indexOf(userName);
 
-  if(idx===-1) temp[id].push(userName);
-  else temp[id].splice(idx,1);
+  if(i===-1) temp[id].push(userName);
+  else temp[id].splice(i,1);
 
   render(id,el,temp[id]);
 }
 
-// 顯示
+// ===== 顯示 =====
 function render(id,el,arr){
   el.innerText=arr.join("/");
 
-  let c=arr.length;
   el.className="";
+  let c=arr.length;
   if(c==1)el.classList.add("l1");
   else if(c==2)el.classList.add("l2");
   else if(c==3)el.classList.add("l3");
   else if(c>=4)el.classList.add("l4");
 }
 
-// 送出 Firebase（修正版）
+// ===== 送出 =====
 function submitData(){
-  let url = base + group + ".json";
-
-  fetch(url,{
+  fetch(base + group + ".json",{
     method:"PUT",
     body:JSON.stringify(temp)
-  })
-  .then(r=>r.text())
-  .then(()=>{
-    alert("送出成功");
-  })
-  .catch(err=>{
-    alert("送出失敗");
-    console.log(err);
   });
+
+  alert("已送出");
 }
 
-// 讀取 Firebase（修正版）
+// ===== 載入 =====
 function load(){
-  let url = base + group + ".json";
+  fetch(base + group + ".json")
+  .then(r=>r.json())
+  .then(d=>{
+    if(!d) return;
+    temp=d;
 
-  fetch(url)
-  .then(res=>res.json())
-  .then(data=>{
-    if(!data) return;
-
-    temp = data;
-
-    for(let key in temp){
-      let cell=document.querySelector(`td[onclick="toggle('${key}',this)"]`);
-      if(cell) render(key,cell,temp[key]);
+    for(let k in temp){
+      let cell=document.querySelector(`td[onclick="toggle('${k}',this)"]`);
+      if(cell) render(k,cell,temp[k]);
     }
+
+    // 成員顯示
+    let names=new Set();
+    for(let k in temp){
+      temp[k].forEach(n=>names.add(n));
+    }
+    document.getElementById("members").innerText=[...names].join("/");
   });
 }
-
-load();
 
 </script>
 
