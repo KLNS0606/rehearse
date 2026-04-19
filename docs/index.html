@@ -2,7 +2,12 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>練團時間表</title>
+    <title>🎸 練團時間表</title>
+    
+    <meta property="og:title" content="🎸 練團時間表">
+    <meta property="og:description" content="點擊連結填寫你的練團空檔，快速統計最佳練習時間！">
+    <meta property="og:image" content="https://img.icons8.com/color/480/rock-music.png">
+
     <style>
         body { font-family: Arial, sans-serif; margin: 0; }
         .topbar {
@@ -37,7 +42,7 @@
 <body>
 
 <div class="topbar">
-    <div>🎸 練團時間表</div>
+    <div id="mainLogo">🎸 練團時間表</div>
     <div id="groupBar" class="hidden">
         👥 <span id="members">載入中...</span>
         <button onclick="copyLink(location.href)">複製此頁連結</button>
@@ -89,45 +94,34 @@ window.onload = () => {
     }
 };
 
-// ================= 建立團隊 (增加檢查機制) =================
 async function createGroup() {
     const id = document.getElementById("groupId").value.trim();
     const name = document.getElementById("groupName").value.trim();
     const start = document.getElementById("start").value;
-
     if (!id || !name || !start) { alert("請填寫完整！"); return; }
 
     try {
-        // 1. 先檢查雲端是否已有此 ID 的 Meta 資料
         const checkRes = await fetch(`${base}${id}/meta.json`);
         const existingMeta = await checkRes.json();
-
         if (existingMeta) {
-            alert(`編號 [${id}] 已被佔用！\n若要更改日期或重新建立，請先點選下方列表的「刪」按鈕將其移除。`);
+            alert(`編號 [${id}] 已被佔用！`);
             return;
         }
-
-        // 2. 如果不存在，則執行建立
         const meta = { name: name, start: new Date(start).toISOString() };
         await fetch(`${base}${id}/meta.json`, { method: "PUT", body: JSON.stringify(meta) });
-        
         let list = JSON.parse(localStorage.getItem("groups") || "[]");
         if (!list.find(g => g.id === id)) {
             list.push({ id, name });
             localStorage.setItem("groups", JSON.stringify(list));
         }
         location.href = `?group=${id}`;
-    } catch (e) { 
-        alert("建立時發生錯誤，請稍後再試"); 
-    }
+    } catch (e) { alert("建立失敗"); }
 }
 
-// ================= 載入列表 =================
 function loadLocalList() {
     let list = JSON.parse(localStorage.getItem("groups") || "[]");
     let box = document.getElementById("list");
     box.innerHTML = list.length ? "" : "目前沒有記錄";
-
     list.forEach(g => {
         let url = `${location.origin}${location.pathname}?group=${g.id}`;
         let div = document.createElement("div");
@@ -143,32 +137,39 @@ function loadLocalList() {
     });
 }
 
-// ================= 徹底刪除團體 (包含雲端) =================
 async function deleteFullGroup(id) {
-    if(!confirm(`確定要永久刪除 [${id}] 嗎？\n這將同時移除雲端資料與日期設定。`)) return;
-
+    if(!confirm(`確定要永久刪除 [${id}] 嗎？`)) return;
     try {
-        // 1. 刪除雲端資料
-        await fetch(`${base}${id}.json`, { method: "DELETE" });
-
-        // 2. 移除本地列表紀錄
+        await fetch(`${base}${id}/data.json`, { method: "DELETE" });
+        await fetch(`${base}${id}/meta.json`, { method: "DELETE" });
         let list = JSON.parse(localStorage.getItem("groups") || "[]").filter(x => x.id !== id);
         localStorage.setItem("groups", JSON.stringify(list));
-        
-        alert("已成功刪除，現在可以使用該編號建立新團。");
         loadLocalList();
-    } catch (e) {
-        alert("刪除失敗");
-    }
+    } catch (e) { alert("刪除失敗"); }
 }
 
-// ================= 載入與渲染 (其餘邏輯維持不變) =================
 async function loadGroupData() {
     try {
         const resMeta = await fetch(`${base}${currentGroupId}/meta.json`);
         metaData = await resMeta.json();
         if (!metaData) { document.getElementById("title").innerText = "找不到資料"; return; }
+
+        // 計算日期區間格式 (M/D-M/D)
+        let dStart = new Date(metaData.start);
+        let dEnd = new Date(metaData.start);
+        dEnd.setDate(dStart.getDate() + 6);
+        let dateRange = `${dStart.getMonth() + 1}/${dStart.getDate()}-${dEnd.getMonth() + 1}/${dEnd.getDate()}`;
+        
+        // 1. 中間標題：依樣顯示團名
         document.getElementById("title").innerText = metaData.name;
+
+        // 2. 最上面 Topbar：顯示 團名 日期區間-練團時間表
+        const fullDisplay = `🎸 ${metaData.name} ${dateRange}-練團時間表`;
+        document.getElementById("mainLogo").innerText = fullDisplay;
+
+        // 3. 網頁標籤標題同步更新
+        document.title = fullDisplay;
+
         renderTableStructure();
         const resData = await fetch(`${base}${currentGroupId}/data.json`);
         const data = await resData.json();
