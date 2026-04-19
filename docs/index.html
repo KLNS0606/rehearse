@@ -2,56 +2,58 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>練團表系統</title>
+<title>練團系統</title>
 
 <style>
-body {
-  font-family: Arial;
+body { font-family: Arial; }
+
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px;
+  background:#f2f2f2;
 }
 
-input, button {
-  margin: 5px;
-}
+button,input{ margin:5px; }
 
 table {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: fixed;
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
 }
 
-th, td {
-  border: 1px solid #ccc;
-  text-align: center;
-  height: 35px;
-  cursor: pointer;
+td,th{
+  border:1px solid #ccc;
+  text-align:center;
+  height:35px;
+  cursor:pointer;
 }
 
-th {
-  background: #eee;
-}
-
-/* 人數顏色 */
-.l1 { background: #b3e5fc; }
-.l2 { background: #4fc3f7; }
-.l3 { background: #0288d1; color: white; }
-.l4 { background: #01579b; color: white; }
-
+.l1{background:#b3e5fc;}
+.l2{background:#4fc3f7;}
+.l3{background:#0288d1;color:white;}
+.l4{background:#01579b;color:white;}
 </style>
 </head>
 
 <body>
 
-<h2>🎸 練團時間表</h2>
+<div class="topbar">
+  <div>🎸 團：<span id="groupName">default</span></div>
 
-<button onclick="createGroup()">🎯 創建新團</button>
+  <div>
+    <button onclick="createGroup()">➕ 建立新團</button>
+    <button onclick="copyLink()">📋 複製連結</button>
+  </div>
+</div>
 
-<br>
+<hr>
 
 名字（1字）：
 <input id="nameInput" maxlength="1">
-
-<button onclick="setName()">設定名字</button>
-<button onclick="submitData()">送出同步</button>
+<button onclick="setName()">設定</button>
+<button onclick="submitData()">送出</button>
 
 <p id="info"></p>
 
@@ -59,127 +61,130 @@ th {
 
 <script>
 
+const base = "https://rehearse0606-default-rtdb.firebaseio.com/";
+
 let userName = "";
 let group = getGroup();
-let tempData = {};
-let db = {};
+let temp = {};
 
-const baseURL = "https://rehearse0606-default-rtdb.firebaseio.com/";
+// 顯示團名
+document.getElementById("groupName").innerText = group;
 
-// 取得團
-function getGroup() {
-  const url = new URL(window.location.href);
+// 取得 group
+function getGroup(){
+  let url = new URL(window.location.href);
   return url.searchParams.get("group") || "default";
 }
 
-// 顯示資訊
-function setName() {
-  userName = document.getElementById("nameInput").value;
-  document.getElementById("info").innerText =
-    "團：" + group + " / 名字：" + userName;
+// 建立新團
+function createGroup(){
+  let name = prompt("輸入團名（英文/數字）");
+  if(!name) return;
+
+  let link = window.location.origin + window.location.pathname + "?group=" + name;
+
+  navigator.clipboard.writeText(link);
+
+  alert("已建立並複製連結：\n" + link);
+
+  window.location.href = link;
 }
 
-// 創團
-function createGroup() {
-  let name = prompt("輸入團名（英文或數字）");
-  if (!name) return;
+// 複製連結
+function copyLink(){
+  let link = window.location.href;
+  navigator.clipboard.writeText(link);
+  alert("已複製連結");
+}
 
-  let url = window.location.origin + window.location.pathname + "?group=" + name;
-
-  navigator.clipboard.writeText(url);
-
-  alert("已產生並複製連結：\n" + url);
-
-  window.location.href = url;
+// 設名字
+function setName(){
+  userName = document.getElementById("nameInput").value;
+  document.getElementById("info").innerText = "名字：" + userName;
 }
 
 // 建表
 let table = document.getElementById("table");
 
-let hours = [];
-for (let i = 5; i < 29; i++) hours.push(i % 24);
+let hours=[];
+for(let i=5;i<29;i++)hours.push(i%24);
 
 // header
-let head = "<tr><th>時間</th>";
-for (let d = 0; d < 7; d++) head += "<th>Day" + (d+1) + "</th>";
-head += "</tr>";
-table.innerHTML += head;
+let h="<tr><th>時間</th>";
+for(let d=0;d<7;d++)h+="<th>Day"+(d+1)+"</th>";
+h+="</tr>";
+table.innerHTML+=h;
 
 // body
-for (let h = 0; h < hours.length; h++) {
-  let tr = "<tr>";
+for(let i=0;i<hours.length;i++){
+  let tr="<tr>";
+  tr+="<td>"+hours[i]+":00</td>";
 
-  tr += "<td>" + hours[h] + ":00</td>";
-
-  for (let d = 0; d < 7; d++) {
-    let id = d + "-" + h;
-    tr += `<td onclick="toggle('${id}', this)"></td>`;
+  for(let d=0;d<7;d++){
+    let id=d+"-"+i;
+    tr+=`<td onclick="toggle('${id}',this)"></td>`;
   }
 
-  tr += "</tr>";
-  table.innerHTML += tr;
+  tr+="</tr>";
+  table.innerHTML+=tr;
 }
 
-// 點選
-function toggle(id, el) {
-  if (!userName) return alert("先輸入名字");
+// 點格
+function toggle(id,el){
+  if(!userName) return alert("先輸入名字");
 
-  if (!tempData[id]) tempData[id] = [];
+  if(!temp[id]) temp[id]=[];
 
-  let i = tempData[id].indexOf(userName);
+  let idx=temp[id].indexOf(userName);
 
-  if (i === -1) {
-    tempData[id].push(userName);
-  } else {
-    tempData[id].splice(i, 1);
-  }
+  if(idx===-1) temp[id].push(userName);
+  else temp[id].splice(idx,1);
 
-  renderCell(id, el, tempData[id]);
+  render(id,el,temp[id]);
 }
 
 // 顯示
-function renderCell(id, el, arr) {
-  el.innerText = arr.join("/");
+function render(id,el,arr){
+  el.innerText=arr.join("/");
 
-  el.className = "";
-
-  let c = arr.length;
-  if (c == 1) el.classList.add("l1");
-  else if (c == 2) el.classList.add("l2");
-  else if (c == 3) el.classList.add("l3");
-  else if (c >= 4) el.classList.add("l4");
+  let c=arr.length;
+  el.className="";
+  if(c==1)el.classList.add("l1");
+  else if(c==2)el.classList.add("l2");
+  else if(c==3)el.classList.add("l3");
+  else if(c>=4)el.classList.add("l4");
 }
 
 // 送出 Firebase
-function submitData() {
-  let url = baseURL + group + ".json";
+function submitData(){
+  let url=base+group+".json";
 
-  fetch(url, {
-    method: "PUT",
-    body: JSON.stringify(tempData)
+  fetch(url,{
+    method:"PUT",
+    body:JSON.stringify(temp)
   });
 
   alert("已送出！");
 }
 
 // 載入資料
-function loadData() {
-  let url = baseURL + group + ".json";
+function load(){
+  let url=base+group+".json";
 
   fetch(url)
-    .then(res => res.json())
-    .then(data => {
-      if (data) tempData = data;
+  .then(r=>r.json())
+  .then(d=>{
+    if(d) temp=d;
 
-      for (let key in tempData) {
-        let cell = document.querySelector(`td[onclick="toggle('${key}', this)"]`);
-
-        if (cell) renderCell(key, cell, tempData[key]);
-      }
-    });
+    for(let k in temp){
+      let el=document.querySelectorAll("td")[0];
+      let cell=document.querySelector(`td[onclick="toggle('${k}', this)"]`);
+      if(cell) render(k,cell,temp[k]);
+    }
+  });
 }
 
-loadData();
+load();
 
 </script>
 
