@@ -10,7 +10,6 @@ body { font-family: Arial; }
 .topbar{
   display:flex;
   justify-content:space-between;
-  align-items:center;
   padding:10px;
   background:#f2f2f2;
 }
@@ -40,15 +39,12 @@ td,th{
 <body>
 
 <div class="topbar">
-  <div>🎸 團：<span id="groupName">default</span></div>
-
+  <div>🎸 團：<span id="groupName"></span></div>
   <div>
-    <button onclick="createGroup()">➕ 建立新團</button>
+    <button onclick="createGroup()">➕ 創建新團</button>
     <button onclick="copyLink()">📋 複製連結</button>
   </div>
 </div>
-
-<hr>
 
 名字（1字）：
 <input id="nameInput" maxlength="1">
@@ -67,7 +63,6 @@ let userName = "";
 let group = getGroup();
 let temp = {};
 
-// 顯示團名
 document.getElementById("groupName").innerText = group;
 
 // 取得 group
@@ -76,7 +71,7 @@ function getGroup(){
   return url.searchParams.get("group") || "default";
 }
 
-// 建立新團
+// 創團
 function createGroup(){
   let name = prompt("輸入團名（英文/數字）");
   if(!name) return;
@@ -84,16 +79,14 @@ function createGroup(){
   let link = window.location.origin + window.location.pathname + "?group=" + name;
 
   navigator.clipboard.writeText(link);
-
-  alert("已建立並複製連結：\n" + link);
+  alert("已複製連結：\n" + link);
 
   window.location.href = link;
 }
 
 // 複製連結
 function copyLink(){
-  let link = window.location.href;
-  navigator.clipboard.writeText(link);
+  navigator.clipboard.writeText(window.location.href);
   alert("已複製連結");
 }
 
@@ -155,31 +148,38 @@ function render(id,el,arr){
   else if(c>=4)el.classList.add("l4");
 }
 
-// 送出 Firebase
+// 送出 Firebase（修正版）
 function submitData(){
-  let url=base+group+".json";
+  let url = base + group + ".json";
 
   fetch(url,{
     method:"PUT",
     body:JSON.stringify(temp)
+  })
+  .then(r=>r.text())
+  .then(()=>{
+    alert("送出成功");
+  })
+  .catch(err=>{
+    alert("送出失敗");
+    console.log(err);
   });
-
-  alert("已送出！");
 }
 
-// 載入資料
+// 讀取 Firebase（修正版）
 function load(){
-  let url=base+group+".json";
+  let url = base + group + ".json";
 
   fetch(url)
-  .then(r=>r.json())
-  .then(d=>{
-    if(d) temp=d;
+  .then(res=>res.json())
+  .then(data=>{
+    if(!data) return;
 
-    for(let k in temp){
-      let el=document.querySelectorAll("td")[0];
-      let cell=document.querySelector(`td[onclick="toggle('${k}', this)"]`);
-      if(cell) render(k,cell,temp[k]);
+    temp = data;
+
+    for(let key in temp){
+      let cell=document.querySelector(`td[onclick="toggle('${key}',this)"]`);
+      if(cell) render(key,cell,temp[key]);
     }
   });
 }
