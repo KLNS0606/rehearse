@@ -1,332 +1,257 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-<meta charset="UTF-8">
-<title>練團時間表</title>
-
-<style>
-body{font-family:Arial;margin:0;}
-
-.topbar{
-  display:flex;
-  justify-content:space-between;
-  padding:10px;
-  background:#eee;
-}
-
-.container{padding:10px;}
-
-.row{
-  display:grid;
-  grid-template-columns: 80px 1fr 2fr 60px;
-  gap:10px;
-  padding:8px;
-  border-bottom:1px solid #ddd;
-  align-items:center;
-}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-}
-
-td,th{
-  border:1px solid #ccc;
-  text-align:center;
-  height:35px;
-  cursor:pointer;
-}
-
-.l1{background:#b3e5fc;}
-.l2{background:#4fc3f7;}
-.l3{background:#0288d1;color:white;}
-.l4{background:#01579b;color:white;}
-
-.hidden{display:none;}
-a{color:blue;}
-</style>
+    <meta charset="UTF-8">
+    <title>練團時間表</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #eee;
+            align-items: center;
+        }
+        .container { padding: 10px; }
+        .row {
+            display: grid;
+            grid-template-columns: 60px 80px 120px 1fr 60px;
+            gap: 10px;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            align-items: center;
+            font-size: 14px;
+        }
+        .url-text { color: blue; text-decoration: underline; word-break: break-all; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        td, th { border: 1px solid #ccc; text-align: center; height: 35px; cursor: pointer; }
+        th { background: #f4f4f4; }
+        .l1 { background: #b3e5fc; }
+        .l2 { background: #4fc3f7; }
+        .l3 { background: #0288d1; color: white; }
+        .l4 { background: #01579b; color: white; }
+        .hidden { display: none; }
+        button { cursor: pointer; padding: 5px 8px; }
+    </style>
 </head>
-
 <body>
 
 <div class="topbar">
-  🎸 練團時間表
-
-  <div id="groupBar" class="hidden">
-    👥 <span id="members"></span>
-    <button onclick="copyLink()">複製連結</button>
-  </div>
+    <div>🎸 練團時間表</div>
+    <div id="groupBar" class="hidden">
+        👥 <span id="members">載入中...</span>
+        <button onclick="copyLink(location.href)">複製此頁連結</button>
+    </div>
 </div>
 
 <div class="container">
+    <div id="home">
+        <h3>建立新團</h3>
+        ID：<input id="groupId"> 
+        團名：<input id="groupName">
+        日期：<input type="date" id="start">
+        <button onclick="createGroup()">建立並進入</button>
+        <p style="font-size: 0.8em; color: red;">* 若 ID 已被使用，請先刪除下方列表中的舊團才能重新建立。</p>
 
-<!-- 🟢 首頁 -->
-<div id="home">
+        <h3>我的團隊列表</h3>
+        <div id="list"></div>
+    </div>
 
-  <h3>建立新團</h3>
+    <div id="page" class="hidden">
+        <h2 id="title">載入中...</h2>
+        <div style="margin-bottom: 15px;">
+            👥 目前已確認成員：<span id="membersText">無</span>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+            您的名字(限1字)：<input id="userName" placeholder="填1字" maxlength="1">
+            <button onclick="submitData()" style="background: #4caf50; color: white; border: none; padding: 6px 15px;">確定並送出時間</button>
+        </div>
 
-  ID：
-  <input id="groupId">
-
-  團名：
-  <input id="groupName">
-
-  <br>
-
-  開始日期：
-  <input type="date" id="start">
-
-  <button onclick="createGroup()">建立</button>
-
-  <h3>團隊列表</h3>
-  <div id="list"></div>
-
-</div>
-
-<!-- 🔵 團內 -->
-<div id="page" class="hidden">
-
-  <h2 id="title"></h2>
-
-  👥 <span id="membersText"></span>
-
-  <br><br>
-
-  名字：
-  <input id="name" maxlength="10">
-  <button onclick="setName()">設定</button>
-  <button onclick="submit()">送出</button>
-
-  <table id="table"></table>
-
-</div>
-
+        <table id="table"></table>
+    </div>
 </div>
 
 <script>
+const base = "https://rehearse0606-default-rtdb.firebaseio.com/";
+let currentGroupId = new URL(location.href).searchParams.get("group");
+let tempData = {}; 
+let metaData = {};
 
-const base="https://rehearse0606-default-rtdb.firebaseio.com/";
-
-let groupId=getGroup();
-let user="";
-let temp={};
-let meta={};
-
-// ================= 判斷 =================
-if(groupId){
-  document.getElementById("home").classList.add("hidden");
-  document.getElementById("page").classList.remove("hidden");
-  document.getElementById("groupBar").classList.remove("hidden");
-  load();
-}else{
-  loadList();
-}
-
-// ================= group =================
-function getGroup(){
-  return new URL(location.href).searchParams.get("group");
-}
-
-// ================= 建團（修正） =================
-function createGroup(){
-
-  let id=document.getElementById("groupId").value;
-  let name=document.getElementById("groupName").value;
-  let start=document.getElementById("start").value;
-
-  if(!id||!name||!start)return;
-
-  let startDate=new Date(start);
-  let endDate=new Date(startDate);
-  endDate.setDate(startDate.getDate()+6);
-
-  let list=JSON.parse(localStorage.getItem("groups")||"[]");
-  list.push({id,name});
-  localStorage.setItem("groups",JSON.stringify(list));
-
-  fetch(base+id+".meta.json",{
-    method:"PUT",
-    body:JSON.stringify({
-      name: name,
-      start: startDate.toISOString(),
-      end: endDate.toISOString()
-    })
-  });
-
-  location.href="?group="+id;
-}
-
-// ================= 列表 =================
-function loadList(){
-
-  let list=JSON.parse(localStorage.getItem("groups")||"[]");
-  let box=document.getElementById("list");
-  box.innerHTML="";
-
-  list.forEach(g=>{
-
-    let url=location.origin+location.pathname+"?group="+g.id;
-
-    let div=document.createElement("div");
-    div.className="row";
-
-    div.innerHTML=`
-      <div>${g.id}</div>
-      <div>${g.name}</div>
-      <div>${url}</div>
-      <button onclick="deleteGroup('${g.id}')">刪</button>
-    `;
-
-    box.appendChild(div);
-  });
-}
-
-// ================= 刪團 =================
-function deleteGroup(id){
-
-  let list=JSON.parse(localStorage.getItem("groups")||"[]");
-  list=list.filter(x=>x.id!==id);
-  localStorage.setItem("groups",JSON.stringify(list));
-
-  fetch(base+id+".json",{method:"DELETE"});
-  fetch(base+id+".meta.json",{method:"DELETE"});
-
-  loadList();
-}
-
-// ================= 複製 =================
-function copyLink(){
-  navigator.clipboard.writeText(location.href);
-}
-
-// ================= 名字 =================
-function setName(){
-  user=document.getElementById("name").value;
-}
-
-// ================= 表格 =================
-function renderTable(){
-
-  let table=document.getElementById("table");
-  table.innerHTML="";
-
-  let start=new Date(meta.start || new Date());
-
-  let h="<tr><th>時間</th>";
-
-  for(let i=0;i<7;i++){
-
-    let d=new Date(start);
-    d.setDate(start.getDate()+i);
-
-    let week=["日","一","二","三","四","五","六"][d.getDay()];
-
-    h+=`<th>${d.getMonth()+1}/${d.getDate()}(${week})</th>`;
-  }
-
-  h+="</tr>";
-  table.innerHTML+=h;
-
-  let hours=[];
-  for(let i=5;i<29;i++)hours.push(i%24);
-
-  for(let i=0;i<hours.length;i++){
-
-    let tr="<tr>";
-    tr+="<td>"+hours[i]+":00</td>";
-
-    for(let d=0;d<7;d++){
-      let id=d+"-"+i;
-      tr+=`<td onclick="toggle('${id}',this)"></td>`;
+window.onload = () => {
+    if (currentGroupId) {
+        document.getElementById("home").classList.add("hidden");
+        document.getElementById("page").classList.remove("hidden");
+        document.getElementById("groupBar").classList.remove("hidden");
+        loadGroupData();
+    } else {
+        loadLocalList();
     }
+};
 
-    tr+="</tr>";
-    table.innerHTML+=tr;
-  }
+// ================= 建立團隊 (增加檢查機制) =================
+async function createGroup() {
+    const id = document.getElementById("groupId").value.trim();
+    const name = document.getElementById("groupName").value.trim();
+    const start = document.getElementById("start").value;
 
-  refresh();
+    if (!id || !name || !start) { alert("請填寫完整！"); return; }
+
+    try {
+        // 1. 先檢查雲端是否已有此 ID 的 Meta 資料
+        const checkRes = await fetch(`${base}${id}/meta.json`);
+        const existingMeta = await checkRes.json();
+
+        if (existingMeta) {
+            alert(`編號 [${id}] 已被佔用！\n若要更改日期或重新建立，請先點選下方列表的「刪」按鈕將其移除。`);
+            return;
+        }
+
+        // 2. 如果不存在，則執行建立
+        const meta = { name: name, start: new Date(start).toISOString() };
+        await fetch(`${base}${id}/meta.json`, { method: "PUT", body: JSON.stringify(meta) });
+        
+        let list = JSON.parse(localStorage.getItem("groups") || "[]");
+        if (!list.find(g => g.id === id)) {
+            list.push({ id, name });
+            localStorage.setItem("groups", JSON.stringify(list));
+        }
+        location.href = `?group=${id}`;
+    } catch (e) { 
+        alert("建立時發生錯誤，請稍後再試"); 
+    }
 }
 
-// ================= 點選 =================
-function toggle(id,el){
+// ================= 載入列表 =================
+function loadLocalList() {
+    let list = JSON.parse(localStorage.getItem("groups") || "[]");
+    let box = document.getElementById("list");
+    box.innerHTML = list.length ? "" : "目前沒有記錄";
 
-  if(!user)return;
-
-  if(!temp[id])temp[id]=[];
-
-  let i=temp[id].indexOf(user);
-
-  if(i===-1)temp[id].push(user);
-  else temp[id].splice(i,1);
-
-  render(el,temp[id]);
+    list.forEach(g => {
+        let url = `${location.origin}${location.pathname}?group=${g.id}`;
+        let div = document.createElement("div");
+        div.className = "row";
+        div.innerHTML = `
+            <button onclick="copyLink('${url}')">複製</button>
+            <strong>${g.id}</strong>
+            <span>${g.name}</span>
+            <div class="url-text" onclick="location.href='${url}'">${url}</div>
+            <button onclick="deleteFullGroup('${g.id}')">刪</button>
+        `;
+        box.appendChild(div);
+    });
 }
 
-// ================= 顯示 =================
-function render(el,arr){
+// ================= 徹底刪除團體 (包含雲端) =================
+async function deleteFullGroup(id) {
+    if(!confirm(`確定要永久刪除 [${id}] 嗎？\n這將同時移除雲端資料與日期設定。`)) return;
 
-  el.innerText=arr.join("/");
+    try {
+        // 1. 刪除雲端資料
+        await fetch(`${base}${id}.json`, { method: "DELETE" });
 
-  el.className="";
-  let c=arr.length;
-
-  if(c==1)el.classList.add("l1");
-  else if(c==2)el.classList.add("l2");
-  else if(c==3)el.classList.add("l3");
-  else if(c>=4)el.classList.add("l4");
+        // 2. 移除本地列表紀錄
+        let list = JSON.parse(localStorage.getItem("groups") || "[]").filter(x => x.id !== id);
+        localStorage.setItem("groups", JSON.stringify(list));
+        
+        alert("已成功刪除，現在可以使用該編號建立新團。");
+        loadLocalList();
+    } catch (e) {
+        alert("刪除失敗");
+    }
 }
 
-// ================= 成員 =================
-function refresh(){
-
-  let set=new Set();
-
-  for(let k in temp){
-
-    let el=document.querySelector(`td[onclick="toggle('${k}',this)"]`);
-    if(el)render(el,temp[k]);
-
-    temp[k].forEach(n=>set.add(n));
-  }
-
-  let text=[...set].join("/");
-
-  document.getElementById("members").innerText=text;
-  document.getElementById("membersText").innerText=text;
+// ================= 載入與渲染 (其餘邏輯維持不變) =================
+async function loadGroupData() {
+    try {
+        const resMeta = await fetch(`${base}${currentGroupId}/meta.json`);
+        metaData = await resMeta.json();
+        if (!metaData) { document.getElementById("title").innerText = "找不到資料"; return; }
+        document.getElementById("title").innerText = metaData.name;
+        renderTableStructure();
+        const resData = await fetch(`${base}${currentGroupId}/data.json`);
+        const data = await resData.json();
+        if (data) { tempData = data; refreshUI(true); }
+    } catch (e) { document.getElementById("title").innerText = "連線失敗"; }
 }
 
-// ================= 送出（修正關鍵） =================
-function submit(){
-
-  fetch(base+groupId+".json",{
-    method:"PUT",
-    body:JSON.stringify(temp)
-  }).then(()=>{
-    refresh(); // ⭐ 立刻更新畫面
-  });
+function renderTableStructure() {
+    const table = document.getElementById("table");
+    table.innerHTML = "";
+    let start = new Date(metaData.start);
+    let h = "<tr><th>時間</th>";
+    for (let i = 0; i < 7; i++) {
+        let d = new Date(start); d.setDate(start.getDate() + i);
+        let week = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
+        h += `<th>${d.getMonth() + 1}/${d.getDate()}(${week})</th>`;
+    }
+    table.innerHTML = h + "</tr>";
+    let hours = [];
+    for (let i = 5; i < 29; i++) hours.push(i % 24);
+    hours.forEach((h, idx) => {
+        let tr = document.createElement("tr");
+        tr.innerHTML = `<td>${h}:00</td>`;
+        for (let d = 0; d < 7; d++) {
+            let cellId = `${d}-${idx}`;
+            let td = document.createElement("td");
+            td.dataset.id = cellId;
+            td.onclick = () => toggleCell(cellId);
+            tr.appendChild(td);
+        }
+        table.appendChild(tr);
+    });
 }
 
-// ================= 載入 =================
-function load(){
-
-  fetch(base+groupId+".meta.json")
-  .then(r=>r.json())
-  .then(m=>{
-
-    meta=m || {name:"未命名",start:new Date()};
-
-    document.getElementById("title").innerText=meta.name;
-
-    renderTable();
-  });
-
-  fetch(base+groupId+".json")
-  .then(r=>r.json())
-  .then(d=>{
-    if(d)temp=d;
-  });
+function toggleCell(cellId) {
+    let userName = document.getElementById("userName").value.trim();
+    if (!userName) { alert("請先輸入名字！"); return; }
+    if (!tempData[cellId]) tempData[cellId] = [];
+    let index = tempData[cellId].indexOf(userName);
+    if (index === -1) tempData[cellId].push(userName);
+    else tempData[cellId].splice(index, 1);
+    refreshUI(false); 
 }
 
+function refreshUI(updateMemberText) {
+    let allMembers = new Set();
+    document.querySelectorAll("#table td[data-id]").forEach(td => {
+        let id = td.dataset.id;
+        let users = tempData[id] || [];
+        td.innerText = users.join("/");
+        td.className = "";
+        if (users.length > 0) {
+            if (users.length === 1) td.classList.add("l1");
+            else if (users.length === 2) td.classList.add("l2");
+            else if (users.length === 3) td.classList.add("l3");
+            else td.classList.add("l4");
+            users.forEach(u => allMembers.add(u));
+        }
+    });
+    if (updateMemberText) {
+        let memberListStr = [...allMembers].join(", ") || "無";
+        document.getElementById("members").innerText = memberListStr;
+        document.getElementById("membersText").innerText = memberListStr;
+    }
+}
+
+async function submitData() {
+    let userName = document.getElementById("userName").value.trim();
+    if (!userName) { alert("請輸入名字再送出"); return; }
+    try {
+        await fetch(`${base}${currentGroupId}/data.json`, {
+            method: "PUT",
+            body: JSON.stringify(tempData)
+        });
+        alert("送出成功！");
+        refreshUI(true);
+    } catch (e) { alert("儲存失敗"); }
+}
+
+function copyLink(url) {
+    navigator.clipboard.writeText(url);
+    alert("已複製連結");
+}
 </script>
 
 </body>
