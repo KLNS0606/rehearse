@@ -2,11 +2,15 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>練團時間表</title>
+<title>練團表</title>
 
 <style>
 body {
   font-family: Arial;
+}
+
+input {
+  margin: 5px;
 }
 
 table {
@@ -18,28 +22,23 @@ table {
 th, td {
   border: 1px solid #ccc;
   text-align: center;
-  height: 30px;
+  height: 35px;
   cursor: pointer;
 }
 
 th {
-  background: #f2f2f2;
-}
-
-/* 跨日區塊 */
-.crossday {
   background: #eee;
 }
 
-/* 顏色深淺 */
-.level1 { background: #b3e5fc; }
-.level2 { background: #4fc3f7; }
-.level3 { background: #0288d1; color: white; }
-.level4 { background: #01579b; color: white; }
-
-input {
-  margin: 5px;
+.selected {
+  outline: 3px solid orange;
 }
+
+/* 人數顏色 */
+.l1 { background: #b3e5fc; }
+.l2 { background: #4fc3f7; }
+.l3 { background: #0288d1; color: white; }
+.l4 { background: #01579b; color: white; }
 </style>
 </head>
 
@@ -47,119 +46,134 @@ input {
 
 <h2>🎸 練團時間表</h2>
 
-<!-- 輸入名字（限制1個字） -->
-名字：
-<input id="nameInput" maxlength="1" placeholder="只可一字">
+團名：
+<input id="groupInput" placeholder="輸入團名">
 
-<button onclick="saveName()">送出名字</button>
+名字（限1字）：
+<input id="nameInput" maxlength="1">
 
-<br><br>
+<button onclick="setInfo()">設定</button>
+<button onclick="submitData()">送出同步</button>
 
-<button onclick="share()">📤 產生分享連結</button>
+<p id="info"></p>
 
-<p id="shareLink"></p>
-
-<table id="schedule"></table>
+<table id="table"></table>
 
 <script>
-let dbData = {}; // 暫存資料
 let userName = "";
+let groupName = "";
+let tempSelect = {};
+let db = {};
 
-// Firebase（你的專案）
-const firebaseURL = "https://rehearse0606-default-rtdb.firebaseio.com/schedule.json";
+// Firebase
+const base = "https://rehearse0606-default-rtdb.firebaseio.com/";
 
-// 設名字（只能1字）
-function saveName() {
-  let name = document.getElementById("nameInput").value;
-  if (!name) return alert("請輸入名字");
-  userName = name[0];
-  alert("已設定名字：" + userName);
+function getGroup() {
+  const url = new URL(window.location.href);
+  return url.searchParams.get("group") || "default";
 }
 
-// 產生表格（5:00 ~ 隔日5:00）
-let table = document.getElementById("schedule");
+groupName = getGroup();
+
+// 初始化
+loadData();
+
+function setInfo() {
+  userName = document.getElementById("nameInput").value;
+  groupName = document.getElementById("groupInput").value || groupName;
+
+  document.getElementById("info").innerText =
+    "團：" + groupName + " / 名字：" + userName;
+}
+
+// 時間表
+let table = document.getElementById("table");
 
 let hours = [];
-for (let i = 5; i < 29; i++) {
-  hours.push(i % 24);
-}
+for (let i = 5; i < 29; i++) hours.push(i % 24);
 
-// 表頭
-let header = "<tr><th>時間</th>";
-for (let d = 0; d < 7; d++) {
-  header += `<th>Day${d+1}</th>`;
-}
-header += "</tr>";
-table.innerHTML += header;
+// header
+let head = "<tr><th>時間</th>";
+for (let d = 0; d < 7; d++) head += "<th>Day" + (d+1) + "</th>";
+head += "</tr>";
+table.innerHTML += head;
 
-// 表格
+// body
 for (let h = 0; h < hours.length; h++) {
-  let realHour = hours[h];
+  let tr = "<tr>";
 
-  let row = "<tr>";
+  tr += "<td>" + hours[h] + ":00</td>";
 
-  // 時間欄
-  let label = realHour + ":00";
-  if (realHour < 5) {
-    row += `<td class="crossday">${label}</td>`;
-  } else {
-    row += `<td>${label}</td>`;
-  }
-
-  // 每天格子
   for (let d = 0; d < 7; d++) {
     let id = d + "-" + h;
-    row += `<td onclick="toggle('${id}', this)"></td>`;
+    tr += `<td onclick="selectCell('${id}', this)"></td>`;
   }
 
-  row += "</tr>";
-  table.innerHTML += row;
+  tr += "</tr>";
+  table.innerHTML += tr;
 }
 
-// 點格子（多人累積）
-function toggle(id, cell) {
+// 選擇（本地）
+function selectCell(id, el) {
   if (!userName) return alert("先輸入名字");
 
-  if (!dbData[id]) dbData[id] = [];
+  if (!tempSelect[id]) tempSelect[id] = [];
 
-  let index = dbData[id].indexOf(userName);
+  let i = tempSelect[id].indexOf(userName);
 
-  if (index === -1) {
-    dbData[id].push(userName);
+  if (i === -1) {
+    tempSelect[id].push(userName);
   } else {
-    dbData[id].splice(index, 1);
+    tempSelect[id].splice(i, 1);
   }
 
-  updateCell(id, cell);
-  sendData();
+  updateCell(id, el, tempSelect[id]);
 }
 
-// 更新顏色
-function updateCell(id, cell) {
-  let count = dbData[id] ? dbData[id].length : 0;
+// 更新顯示
+function updateCell(id, el, arr) {
+  if (!arr) arr = [];
 
-  cell.innerText = dbData[id] ? dbData[id].join("") : "";
+  el.innerText = arr.join("/");
 
-  cell.className = "";
+  el.className = "";
 
-  if (count == 1) cell.classList.add("level1");
-  else if (count == 2) cell.classList.add("level2");
-  else if (count == 3) cell.classList.add("level3");
-  else if (count >= 4) cell.classList.add("level4");
+  let c = arr.length;
+  if (c == 1) el.classList.add("l1");
+  else if (c == 2) el.classList.add("l2");
+  else if (c == 3) el.classList.add("l3");
+  else if (c >= 4) el.classList.add("l4");
 }
 
-// 存到 Firebase（按一次才送出）
-function sendData() {
-  fetch(firebaseURL, {
+// 送出 Firebase
+function submitData() {
+  let url = base + groupName + ".json";
+
+  fetch(url, {
     method: "PUT",
-    body: JSON.stringify(dbData)
+    body: JSON.stringify(tempSelect)
   });
+
+  alert("已送出！");
 }
 
-// 分享連結
-function share() {
-  let url = window.location.href;
-  document.getElementById("shareLink").innerText = url;
+// 讀資料
+function loadData() {
+  let url = base + groupName + ".json";
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data) db = data;
+
+      for (let key in db) {
+        let el = document.querySelectorAll("td")[0];
+
+        let cell = document.querySelector(`td[onclick="selectCell('${key}', this)"]`);
+
+        if (cell) updateCell(key, cell, db[key]);
+      }
+    });
 }
 </script>
 
