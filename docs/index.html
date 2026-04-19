@@ -18,10 +18,11 @@ body{font-family:Arial;margin:0;}
 
 .card{
   border:1px solid #ccc;
-  margin:5px 0;
   padding:10px;
+  margin:5px 0;
   display:flex;
   justify-content:space-between;
+  align-items:center;
 }
 
 table{
@@ -50,6 +51,7 @@ td,th{
 
 <div class="topbar">
   🎸 練團系統
+
   <div id="groupBar" class="hidden">
     👥 <span id="members"></span>
     <button onclick="copyLink()">複製連結</button>
@@ -63,7 +65,8 @@ td,th{
 
   <h3>建立新團</h3>
 
-  <input id="groupName" placeholder="團名">
+  中文團名：
+  <input id="groupName">
 
   <br>
 
@@ -75,7 +78,7 @@ td,th{
 
   <button onclick="createGroup()">建立</button>
 
-  <h3>已有團</h3>
+  <h3>目前團隊</h3>
   <div id="list"></div>
 
 </div>
@@ -106,18 +109,17 @@ td,th{
 
 const base="https://rehearse0606-default-rtdb.firebaseio.com/";
 
-let group=getGroup();
+let groupId=getGroup();
 let user="";
 let temp={};
 let meta={};
-let currentWeek=0;
+let weeks=[];
 
-// ================= 判斷模式 =================
-if(group){
+// ================= 模式 =================
+if(groupId){
   document.getElementById("home").classList.add("hidden");
   document.getElementById("page").classList.remove("hidden");
   document.getElementById("groupBar").classList.remove("hidden");
-  document.getElementById("title").innerText="團："+group;
   load();
 }else{
   loadList();
@@ -126,6 +128,16 @@ if(group){
 // ================= group =================
 function getGroup(){
   return new URL(location.href).searchParams.get("group");
+}
+
+// ================= 產ID =================
+function getNextId(list){
+  let max=0;
+  list.forEach(g=>{
+    let n=parseInt(g.id);
+    if(n>max)max=n;
+  });
+  return String(max+1).padStart(3,"0");
 }
 
 // ================= 建團 =================
@@ -139,57 +151,56 @@ function createGroup(){
 
   let list=JSON.parse(localStorage.getItem("groups")||"[]");
 
-  list.push(name);
+  let id=getNextId(list);
+
+  list.push({id,name});
   localStorage.setItem("groups",JSON.stringify(list));
 
-  fetch(base+name+".meta.json",{
+  fetch(base+id+".meta.json",{
     method:"PUT",
-    body:JSON.stringify({start,end})
+    body:JSON.stringify({name,start,end})
   });
 
-  location.href="?group="+name;
+  location.href="?group="+id;
+}
+
+// ================= 刪團 =================
+function deleteGroup(id){
+
+  let list=JSON.parse(localStorage.getItem("groups")||"[]");
+  list=list.filter(x=>x.id!==id);
+  localStorage.setItem("groups",JSON.stringify(list));
+
+  fetch(base+id+".json",{method:"DELETE"});
+  fetch(base+id+".meta.json",{method:"DELETE"});
+
+  loadList();
 }
 
 // ================= 列表 =================
 function loadList(){
+
   let list=JSON.parse(localStorage.getItem("groups")||"[]");
   let box=document.getElementById("list");
-
   box.innerHTML="";
 
   list.forEach(g=>{
-    let url=location.origin+location.pathname+"?group="+g;
+
+    let url=location.origin+location.pathname+"?group="+g.id;
 
     let div=document.createElement("div");
     div.className="card";
 
     div.innerHTML=`
       <div>
-        <div onclick="openGroup('${g}')">${g}</div>
+        <b>${g.name}</b><br>
         <small>${url}</small>
       </div>
-      <button onclick="deleteGroup('${g}')">刪除</button>
+      <button onclick="deleteGroup('${g.id}')">刪除</button>
     `;
 
     box.appendChild(div);
   });
-}
-
-// ================= 刪團 =================
-function deleteGroup(g){
-  let list=JSON.parse(localStorage.getItem("groups")||"[]");
-  list=list.filter(x=>x!==g);
-  localStorage.setItem("groups",JSON.stringify(list));
-
-  fetch(base+g+".json",{method:"DELETE"});
-  fetch(base+g+".meta.json",{method:"DELETE"});
-
-  loadList();
-}
-
-// ================= 進團 =================
-function openGroup(g){
-  location.href="?group="+g;
 }
 
 // ================= 複製 =================
@@ -202,40 +213,19 @@ function setName(){
   user=document.getElementById("name").value;
 }
 
-// ================= 讀資料 =================
-function load(){
+// ================= 建週 =================
+function buildWeeks(start,end){
 
-  fetch(base+group+".meta.json")
-  .then(r=>r.json())
-  .then(m=>{
-    meta=m;
-    buildWeeks();
-  });
-
-  fetch(base+group+".json")
-  .then(r=>r.json())
-  .then(d=>{
-    if(d)temp=d;
-  });
-
-}
-
-// ================= 週切割 =================
-function buildWeeks(){
-
-  let start=new Date(meta.start);
-  let end=new Date(meta.end);
-
-  let weeks=[];
-
+  weeks=[];
   let cur=new Date(start);
 
-  while(cur<=end){
+  while(cur<=new Date(end)){
+
     let s=new Date(cur);
     let e=new Date(cur);
     e.setDate(e.getDate()+6);
 
-    weeks.push({s:new Date(s),e:new Date(e)});
+    weeks.push({s,e});
 
     cur.setDate(cur.getDate()+7);
   }
@@ -290,6 +280,7 @@ function renderTable(){
 
 // ================= 點 =================
 function toggle(id,el){
+
   if(!user)return;
 
   if(!temp[id])temp[id]=[];
@@ -299,11 +290,12 @@ function toggle(id,el){
   if(i===-1)temp[id].push(user);
   else temp[id].splice(i,1);
 
-  renderCell(el,temp[id]);
+  render(el,temp[id]);
 }
 
 // ================= 顯示 =================
-function renderCell(el,arr){
+function render(el,arr){
+
   el.innerText=arr.join("/");
 
   el.className="";
@@ -315,14 +307,14 @@ function renderCell(el,arr){
   else if(c>=4)el.classList.add("l4");
 }
 
-// ================= 成員 + 還原 =================
+// ================= 成員 =================
 function refresh(){
 
   let set=new Set();
 
   for(let k in temp){
     let el=document.querySelector(`td[onclick="toggle('${k}',this)"]`);
-    if(el)renderCell(el,temp[k]);
+    if(el)render(el,temp[k]);
 
     temp[k].forEach(n=>set.add(n));
   }
@@ -332,9 +324,28 @@ function refresh(){
 
 // ================= 送出 =================
 function submit(){
-  fetch(base+group+".json",{
+  fetch(base+groupId+".json",{
     method:"PUT",
     body:JSON.stringify(temp)
+  });
+}
+
+// ================= 載入 =================
+function load(){
+
+  fetch(base+groupId+".meta.json")
+  .then(r=>r.json())
+  .then(m=>{
+    meta=m;
+    document.getElementById("title").innerText=meta.name;
+
+    buildWeeks(meta.start,meta.end);
+  });
+
+  fetch(base+groupId+".json")
+  .then(r=>r.json())
+  .then(d=>{
+    if(d)temp=d;
   });
 }
 
