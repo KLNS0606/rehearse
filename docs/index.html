@@ -2,14 +2,14 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>練團表</title>
+<title>練團表系統</title>
 
 <style>
 body {
   font-family: Arial;
 }
 
-input {
+input, button {
   margin: 5px;
 }
 
@@ -30,15 +30,12 @@ th {
   background: #eee;
 }
 
-.selected {
-  outline: 3px solid orange;
-}
-
 /* 人數顏色 */
 .l1 { background: #b3e5fc; }
 .l2 { background: #4fc3f7; }
 .l3 { background: #0288d1; color: white; }
 .l4 { background: #01579b; color: white; }
+
 </style>
 </head>
 
@@ -46,13 +43,14 @@ th {
 
 <h2>🎸 練團時間表</h2>
 
-團名：
-<input id="groupInput" placeholder="輸入團名">
+<button onclick="createGroup()">🎯 創建新團</button>
 
-名字（限1字）：
+<br>
+
+名字（1字）：
 <input id="nameInput" maxlength="1">
 
-<button onclick="setInfo()">設定</button>
+<button onclick="setName()">設定名字</button>
 <button onclick="submitData()">送出同步</button>
 
 <p id="info"></p>
@@ -60,33 +58,42 @@ th {
 <table id="table"></table>
 
 <script>
+
 let userName = "";
-let groupName = "";
-let tempSelect = {};
+let group = getGroup();
+let tempData = {};
 let db = {};
 
-// Firebase
-const base = "https://rehearse0606-default-rtdb.firebaseio.com/";
+const baseURL = "https://rehearse0606-default-rtdb.firebaseio.com/";
 
+// 取得團
 function getGroup() {
   const url = new URL(window.location.href);
   return url.searchParams.get("group") || "default";
 }
 
-groupName = getGroup();
-
-// 初始化
-loadData();
-
-function setInfo() {
+// 顯示資訊
+function setName() {
   userName = document.getElementById("nameInput").value;
-  groupName = document.getElementById("groupInput").value || groupName;
-
   document.getElementById("info").innerText =
-    "團：" + groupName + " / 名字：" + userName;
+    "團：" + group + " / 名字：" + userName;
 }
 
-// 時間表
+// 創團
+function createGroup() {
+  let name = prompt("輸入團名（英文或數字）");
+  if (!name) return;
+
+  let url = window.location.origin + window.location.pathname + "?group=" + name;
+
+  navigator.clipboard.writeText(url);
+
+  alert("已產生並複製連結：\n" + url);
+
+  window.location.href = url;
+}
+
+// 建表
 let table = document.getElementById("table");
 
 let hours = [];
@@ -106,34 +113,32 @@ for (let h = 0; h < hours.length; h++) {
 
   for (let d = 0; d < 7; d++) {
     let id = d + "-" + h;
-    tr += `<td onclick="selectCell('${id}', this)"></td>`;
+    tr += `<td onclick="toggle('${id}', this)"></td>`;
   }
 
   tr += "</tr>";
   table.innerHTML += tr;
 }
 
-// 選擇（本地）
-function selectCell(id, el) {
+// 點選
+function toggle(id, el) {
   if (!userName) return alert("先輸入名字");
 
-  if (!tempSelect[id]) tempSelect[id] = [];
+  if (!tempData[id]) tempData[id] = [];
 
-  let i = tempSelect[id].indexOf(userName);
+  let i = tempData[id].indexOf(userName);
 
   if (i === -1) {
-    tempSelect[id].push(userName);
+    tempData[id].push(userName);
   } else {
-    tempSelect[id].splice(i, 1);
+    tempData[id].splice(i, 1);
   }
 
-  updateCell(id, el, tempSelect[id]);
+  renderCell(id, el, tempData[id]);
 }
 
-// 更新顯示
-function updateCell(id, el, arr) {
-  if (!arr) arr = [];
-
+// 顯示
+function renderCell(id, el, arr) {
   el.innerText = arr.join("/");
 
   el.className = "";
@@ -147,34 +152,35 @@ function updateCell(id, el, arr) {
 
 // 送出 Firebase
 function submitData() {
-  let url = base + groupName + ".json";
+  let url = baseURL + group + ".json";
 
   fetch(url, {
     method: "PUT",
-    body: JSON.stringify(tempSelect)
+    body: JSON.stringify(tempData)
   });
 
   alert("已送出！");
 }
 
-// 讀資料
+// 載入資料
 function loadData() {
-  let url = base + groupName + ".json";
+  let url = baseURL + group + ".json";
 
   fetch(url)
     .then(res => res.json())
     .then(data => {
-      if (data) db = data;
+      if (data) tempData = data;
 
-      for (let key in db) {
-        let el = document.querySelectorAll("td")[0];
+      for (let key in tempData) {
+        let cell = document.querySelector(`td[onclick="toggle('${key}', this)"]`);
 
-        let cell = document.querySelector(`td[onclick="selectCell('${key}', this)"]`);
-
-        if (cell) updateCell(key, cell, db[key]);
+        if (cell) renderCell(key, cell, tempData[key]);
       }
     });
 }
+
+loadData();
+
 </script>
 
 </body>
