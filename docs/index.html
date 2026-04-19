@@ -2,46 +2,66 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>🎸 練團時間表</title>
+    <title>🐧 練團時間表</title>
     
-    <meta property="og:description" content="練團時間統計表">
-    <meta property="og:image" content="https://img.icons8.com/color/480/rock-music.png">
+    <link rel="icon" href="https://img.icons8.com/color/48/pingu.png" type="image/png">
+
+    <meta property="og:title" content="練團時間表">
+    
+    <meta property="og:image" content="https://img.icons8.com/color/480/pingu.png">
+    <meta property="og:type" content="website">
 
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; }
+        body { font-family: Arial, sans-serif; margin: 0; background-color: #fcfcfc; }
         .topbar {
             display: flex;
             justify-content: space-between;
-            padding: 10px;
+            padding: 10px 15px;
             background: #eee;
             align-items: center;
+            border-bottom: 1px solid #ddd;
         }
-        .container { padding: 10px; }
+        #mainLogo { font-weight: bold; color: #333; display: flex; align-items: center; gap: 5px; }
+        .container { padding: 15px; }
         .row {
             display: grid;
             grid-template-columns: 60px 80px 120px 1fr 60px;
             gap: 10px;
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
             align-items: center;
             font-size: 14px;
+            background: white;
         }
+        .row:hover { background-color: #f9f9f9; }
         .url-text { color: blue; text-decoration: underline; word-break: break-all; cursor: pointer; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        td, th { border: 1px solid #ccc; text-align: center; height: 35px; cursor: pointer; }
-        th { background: #f4f4f4; }
-        .l1 { background: #b3e5fc; }
-        .l2 { background: #4fc3f7; }
-        .l3 { background: #0288d1; color: white; }
-        .l4 { background: #01579b; color: white; }
+        
+        /* 表格樣式優化 */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        td, th { border: 1px solid #e0e0e0; text-align: center; height: 38px; cursor: pointer; font-size: 14px; }
+        th { background: #f5f5f5; color: #555; font-weight: bold; }
+        tr:hover td { background-color: #fafafa; }
+
+        /* 人數顏色分級 */
+        .l1 { background: #b3e5fc !important; } /* 1人 */
+        .l2 { background: #81d4fa !important; } /* 2人 */
+        .l3 { background: #4fc3f7 !important; color: white; } /* 3人 */
+        .l4 { background: #0288d1 !important; color: white; } /* 4人以上 */
+        
         .hidden { display: none; }
-        button { cursor: pointer; padding: 5px 8px; }
+        button { cursor: pointer; padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; background: white; transition: all 0.2s; }
+        button:hover { background: #f0f0f0; border-color: #bbb; }
+        input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        h3, h2 { color: #444; }
     </style>
 </head>
 <body>
 
 <div class="topbar">
-    <div id="mainLogo">🎸 練團時間表</div>
+    <div id="mainLogo">
+        <img src="https://img.icons8.com/color/24/pingu.png" alt="pingu">
+        <span id="logoText">練團時間表</span>
+    </div>
     <div id="groupBar" class="hidden">
         👥 <span id="members">載入中...</span>
         <button onclick="copyRawLink(location.href)">複製連結</button>
@@ -50,11 +70,11 @@
 
 <div class="container">
     <div id="home">
-        <h3>建立新團</h3>
-        ID：<input id="groupId"> 
-        團名：<input id="groupName">
+        <h3>🐧 建立新團</h3>
+        ID：<input id="groupId" placeholder="英文數字"> 
+        團名：<input id="groupName" placeholder="例如: 天空">
         日期：<input type="date" id="start">
-        <button onclick="createGroup()">建立並進入</button>
+        <button onclick="createGroup()" style="background: #e0f7fa; border-color: #b2ebf2;">建立並進入</button>
 
         <h3>我的團隊列表</h3>
         <div id="list"></div>
@@ -62,13 +82,14 @@
 
     <div id="page" class="hidden">
         <h2 id="title">載入中...</h2>
-        <div style="margin-bottom: 15px;">
-            👥 目前已確認成員：<span id="membersText">無</span>
+        <div style="margin-bottom: 15px; color: #666;">
+            👥 目前已確認成員：<span id="membersText" style="color: #333; font-weight: bold;">無</span>
         </div>
         
-        <div style="background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
-            您的名字(限1字)：<input id="userName" placeholder="填1字" maxlength="1">
-            <button onclick="submitData()" style="background: #4caf50; color: white; border: none; padding: 6px 15px;">確定並送出時間</button>
+        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px;">
+            您的名字(限1字)：<input id="userName" placeholder="填1字" maxlength="1" style="width: 50px; text-align: center;">
+            <button onclick="submitData()" style="background: #4caf50; color: white; border: none; padding: 7px 20px; font-weight: bold; margin-left: 10px;">確定並送出時間</button>
+            <p style="font-size: 0.85em; color: #888; margin: 8px 0 0 0;">嗶嗶！先輸入名字，然後點擊下方格子選取時間，最後點擊「送出」。</p>
         </div>
 
         <table id="table"></table>
@@ -96,11 +117,11 @@ async function createGroup() {
     const id = document.getElementById("groupId").value.trim();
     const name = document.getElementById("groupName").value.trim();
     const start = document.getElementById("start").value;
-    if (!id || !name || !start) { alert("請填寫完整！"); return; }
+    if (!id || !name || !start) { alert("嗶！請填寫完整！"); return; }
     try {
         const checkRes = await fetch(`${base}${id}/meta.json`);
         const existingMeta = await checkRes.json();
-        if (existingMeta) { alert(`編號 [${id}] 已存在！`); return; }
+        if (existingMeta) { alert(`編號 [${id}] 已存在，換一個吧！`); return; }
         const meta = { name: name, start: new Date(start).toISOString() };
         await fetch(`${base}${id}/meta.json`, { method: "PUT", body: JSON.stringify(meta) });
         let list = JSON.parse(localStorage.getItem("groups") || "[]");
@@ -122,16 +143,16 @@ function loadLocalList() {
             <strong>${g.id}</strong>
             <span>${g.name}</span>
             <div class="url-text" onclick="location.href='${url}'">${url}</div>
-            <button onclick="deleteFullGroup('${g.id}')">刪</button>
+            <button onclick="deleteFullGroup('${g.id}')" style="color: red; border-color: #ffcdd2;">刪</button>
         `;
         box.appendChild(div);
     });
 }
 
 async function deleteFullGroup(id) {
-    if(!confirm(`確定要永久刪除 [${id}] 嗎？`)) return;
+    if(!confirm(`確定要永久刪除 [${id}] 嗎？資料會不見喔！`)) return;
     try {
-        await fetch(`${base}${id}/data.json`, { method: "DELETE" });
+        await fetch(`${base}${id}.json`, { method: "DELETE" });
         await fetch(`${base}${id}/meta.json`, { method: "DELETE" });
         let list = JSON.parse(localStorage.getItem("groups") || "[]").filter(x => x.id !== id);
         localStorage.setItem("groups", JSON.stringify(list));
@@ -143,19 +164,18 @@ async function loadGroupData() {
     try {
         const resMeta = await fetch(`${base}${currentGroupId}/meta.json`);
         metaData = await resMeta.json();
-        if (!metaData) { document.getElementById("title").innerText = "找不到資料"; return; }
+        if (!metaData) { document.getElementById("title").innerText = "找不到資料 Q_Q"; return; }
 
         let dStart = new Date(metaData.start);
         let dEnd = new Date(metaData.start);
         dEnd.setDate(dStart.getDate() + 6);
         let dateRange = `${dStart.getMonth() + 1}/${dStart.getDate()}-${dEnd.getMonth() + 1}/${dEnd.getDate()}`;
         
-        // 核心顯示邏輯：
         const displayLabel = `${metaData.name} ${dateRange}-練團時間表`;
         
-        document.getElementById("title").innerText = metaData.name; // 中間標題顯示團名
-        document.getElementById("mainLogo").innerText = `🎸 ${displayLabel}`; // Topbar 顯示全名
-        document.title = displayLabel; // 分頁標題同步更新 (有利於分享預覽)
+        document.getElementById("title").innerText = metaData.name; // 中間標題
+        document.getElementById("logoText").innerText = displayLabel; // Topbar 標題
+        document.title = `🐧 ${displayLabel}`; // 分頁標題
 
         renderTableStructure();
         const resData = await fetch(`${base}${currentGroupId}/data.json`);
@@ -179,7 +199,7 @@ function renderTableStructure() {
     for (let i = 5; i < 29; i++) hours.push(i % 24);
     hours.forEach((h, idx) => {
         let tr = document.createElement("tr");
-        tr.innerHTML = `<td>${h}:00</td>`;
+        tr.innerHTML = `<td style="background:#fcfcfc; font-weight:bold; color:#777;">${h}:00</td>`;
         for (let d = 0; d < 7; d++) {
             let cellId = `${d}-${idx}`;
             let td = document.createElement("td");
@@ -193,7 +213,7 @@ function renderTableStructure() {
 
 function toggleCell(cellId) {
     let userName = document.getElementById("userName").value.trim();
-    if (!userName) { alert("請先輸入名字！"); return; }
+    if (!userName) { alert("嗶！請先輸入名字！"); return; }
     if (!tempData[cellId]) tempData[cellId] = [];
     let index = tempData[cellId].indexOf(userName);
     if (index === -1) tempData[cellId].push(userName);
@@ -228,14 +248,14 @@ async function submitData() {
     if (!userName) { alert("請輸入名字再送出"); return; }
     try {
         await fetch(`${base}${currentGroupId}/data.json`, { method: "PUT", body: JSON.stringify(tempData) });
-        alert("送出成功！");
+        alert("嗶！送出成功！");
         refreshUI(true);
     } catch (e) { alert("儲存失敗"); }
 }
 
 function copyRawLink(url) {
-    navigator.clipboard.writeText(url); // 只複製純網址
-    alert("已複製連結");
+    navigator.clipboard.writeText(url); 
+    alert("已複製連結，快去傳給團員！");
 }
 </script>
 
